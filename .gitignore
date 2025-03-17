@@ -1,0 +1,29 @@
+/bin
+/obj
+/*.csproj.user
+/*.sln.user
+/*.suo
+/*.userprefs
+
+/packages/
+/nupkg/
+
+/TestResults/
+
+/.vs/
+
+/Dockerfile*
+/docker-compose*
+/.dockerignore
+
+
+/*.yaml # if you don't want to track kubernetes files.
+/*.yml  # if you don't want to track kubernetes files.
+
+/redis.dump
+
+.DS_Store
+Thumbs.db
+
+/.env
+*.env.*
