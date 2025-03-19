@@ -2,7 +2,7 @@ using ExpanseCategorizationAPI.Data;
 using ExpanseCategorizationAPI.Models;
 using ExpanseCategorizationAPI.Services;
 using Microsoft.AspNetCore.Mvc;
-using StackExchange.Redis;
+using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json;
 
 
@@ -10,18 +10,18 @@ using System.Text.Json;
 
 namespace ExpanseCategorizationAPI.Controllers
 {
-    [Microsoft.AspNetCore.Mvc.Route("api/[controllers]")]
+    [Route("api/[controller]")]
     [ApiController]
     public class TransactionController : ControllerBase
     {
         private readonly AppDbContext _appDbContext;
         private readonly CategorizationService _categorizationService;
-        private readonly StackExchange.Redis.IDatabase _cache;
-        public TransactionController(AppDbContext context, IConnectionMultiplexer redis)
+        private readonly IMemoryCache _cache;
+        public TransactionController(AppDbContext context, IMemoryCache cache)
         {
             _appDbContext = context;
             _categorizationService = new CategorizationService();
-            _cache = redis.GetDatabase();
+            _cache = cache;
         }
 
         [HttpPost]
@@ -31,19 +31,22 @@ namespace ExpanseCategorizationAPI.Controllers
             _appDbContext.Transactions.Add(transaction);
             await _appDbContext.SaveChangesAsync();
 
-            await _cache.StringSetAsync($"transaction: {transaction.Id}", JsonSerializer.Serialize(transaction));
+            _cache.Set($"transaction: {transaction.Id}", transaction, TimeSpan.FromMinutes(5));
             return CreatedAtAction(nameof(GetTransaction), new { id = transaction.Id }, transaction);
         }
 
         [HttpGet("{Id}")]
         public async Task<IActionResult> GetTransaction(int id)
         {
-            var cachedTransaction = await _cache.StringGetAsync($"transaction:{id}");
-            if (!cachedTransaction.IsNullOrEmpty) return Ok(JsonSerializer.Deserialize<Transaction>(cachedTransaction));
-
+            if (_cache.TryGetValue($"transaction:{id}", out Transaction cachedTransaction))
+            {
+                return Ok(cachedTransaction);
+            }
+            
             var transaction = await _appDbContext.Transactions.FindAsync(id);
             if (transaction == null) return NotFound();
 
+            _cache.Set($"transaction:{id}", transaction, TimeSpan.FromMinutes(5));
             return Ok(transaction);
         }
     }
